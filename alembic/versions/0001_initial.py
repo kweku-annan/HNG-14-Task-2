@@ -4,6 +4,7 @@ Revision ID: 0001_initial
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID
 
 revision = "0001_initial"
 down_revision = None
@@ -12,13 +13,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Enable pgcrypto for gen_random_uuid (UUID v4 fallback)
-    # For UUID v7 we generate in the seed script via Python uuid_utils
-    op.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
-
     op.create_table(
         "profiles",
-        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("id", UUID(as_uuid=False), primary_key=True),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("gender", sa.String(), nullable=False),
         sa.Column("gender_probability", sa.Float(), nullable=False),

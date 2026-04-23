@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.schemas.profile import ProfileListResponse, ProfileOut, ErrorResponse
+from app.schemas.profile import ProfileListResponse, ProfileOut
 from app.services.profile_service import get_profiles, VALID_AGE_GROUPS, VALID_GENDERS
 from app.services.nl_parser import parse_natural_language
 
@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 def _validate_filters(
     gender: Optional[str],
     age_group: Optional[str],
+    country_id: Optional[str],
     sort_by: Optional[str],
     order: str,
     min_age: Optional[int],
@@ -24,6 +25,10 @@ def _validate_filters(
     if gender is not None and gender.lower() not in VALID_GENDERS:
         raise HTTPException(status_code=422, detail="Invalid query parameters")
     if age_group is not None and age_group.lower() not in VALID_AGE_GROUPS:
+        raise HTTPException(status_code=422, detail="Invalid query parameters")
+    if country_id is not None and (
+        len(country_id.strip()) != 2 or not country_id.isalpha()
+    ):
         raise HTTPException(status_code=422, detail="Invalid query parameters")
     if sort_by is not None and sort_by not in ("age", "created_at", "gender_probability"):
         raise HTTPException(status_code=422, detail="Invalid query parameters")
@@ -59,7 +64,7 @@ async def list_profiles(
     db: AsyncSession = Depends(get_db),
 ):
     _validate_filters(
-        gender, age_group, sort_by, order,
+        gender, age_group, country_id, sort_by, order,
         min_age, max_age, min_gender_probability, min_country_probability, limit,
     )
 

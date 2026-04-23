@@ -109,6 +109,18 @@ These are known gaps in the current rule-based implementation:
 
 ---
 
+## Seeding
+
+Run the database seed with:
+
+```bash
+python seed.py seed_profiles.json
+```
+
+The script reads `DATABASE_URL` when available, or falls back to standard `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` variables. It is idempotent: rerunning it skips existing profiles by `name` instead of creating duplicates.
+
+---
+
 ## Error Responses
 
 All errors follow this structure:
@@ -130,7 +142,7 @@ All errors follow this structure:
 
 ```sql
 CREATE TABLE profiles (
-    id               VARCHAR(36) PRIMARY KEY,
+    id               UUID PRIMARY KEY,
     name             VARCHAR     NOT NULL UNIQUE,
     gender           VARCHAR     NOT NULL,
     gender_probability FLOAT     NOT NULL,

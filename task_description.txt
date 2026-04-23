@@ -1,0 +1,151 @@
+@channel Backend Wizards — Stage 2 Task: Intelligence Query Engine Assessment
+
+A few of you said Stage 1 was too easy. So here's Stage 2. :dart:
+
+Your system stores data. Good. But right now, clients can't filter it properly, can't sort it, can't paginate through it, and can't query it in plain English. That's what you're fixing.
+
+Task details in Airtable: link
+
+The context
+You're building for Insighta Labs, a demographic intelligence company. Their clients — marketing teams, product teams, growth analysts — need to slice and query your data fast. A database that just sits there isn't useful to them.
+
+What it should do
+Upgrade your existing system with advanced filtering, sorting, pagination, and a natural language search endpoint. You'll also seed your database with 2026 profiles from a provided JSON file before submitting.
+
+Database requirement
+Your profiles table must follow this structure exactly:
+Field                 Type               Notes
+id                    UUID v7            Primary key
+name                  VARCHAR + UNIQUE   Person's full name
+gender                VARCHAR            "male" or "female"
+gender_probability    FLOAT              Confidence score
+age                   INT                Exact age
+age_group             VARCHAR            child, teenager, adult, senior
+country_id            VARCHAR(2)         ISO code (NG, BJ, etc.)
+country_name          VARCHAR            Full country name
+country_probability   FLOAT              Confidence score
+created_at            TIMESTAMP          Auto-generated
+
+Data seeding
+Seed your database with the 2026 profiles from this file: link. Re-running the seed should not create duplicate records.
+
+The endpoints you're building
+
+1. Get All Profiles GET /api/profiles
+Supports filtering, sorting, and pagination in a single request.
+Supported filters:
+gender
+age_group
+country_id
+min_age
+max_age
+min_gender_probability
+min_country_probability
+Sorting: sort_by → age | created_at | gender_probability Order: order → asc | desc
+Pagination: page (default: 1), limit (default: 10, max: 50)
+
+Example:
+/api/profiles?gender=male&country_id=NG&min_age=25&sort_by=age&order=desc&page=1&limit=10
+Success Response (200):
+{
+  "status": "success",
+  "page": 1,
+  "limit": 10,
+  "total": 2026,
+  "data": [
+    {
+      "id": "b3f9c1e2-7d4a-4c91-9c2a-1f0a8e5b6d12",
+      "name": "emmanuel",
+      "gender": "male",
+      "gender_probability": 0.99,
+      "age": 34,
+      "age_group": "adult",
+      "country_id": "NG",
+      "country_name": "Nigeria",
+      "country_probability": 0.85,
+      "created_at": "2026-04-01T12:00:00Z"
+    }
+  ]
+}
+All filters are combinable. Results must match every condition passed.
+
+2. Natural Language Query (Core Feature) GET /api/profiles/search
+
+Example:
+/api/profiles/search?q=young males from nigeria
+
+Parse plain English queries and convert them into filters. Pagination (page, limit) applies here too.
+
+Example mappings:
+"young males"                        →  gender=male + min_age=16 + max_age=24
+"females above 30"                   →  gender=female + min_age=30
+"people from angola"                 →  country_id=AO
+"adult males from kenya"             →  gender=male + age_group=adult + country_id=KE
+"male and female teenagers above 17" →  age_group=teenager + min_age=17
+
+Rules:
+Rule-based parsing only. No AI, no LLMs
+"young" maps to ages 16–24 for parsing purposes only. It is not a stored age group
+Queries that can't be interpreted return:
+{ "status": "error", "message": "Unable to interpret query" }
+
+Error responses
+All errors follow this structure:
+
+{ "status": "error", "message": "<error message>" }
+400 Bad Request — Missing or empty parameter
+422 Unprocessable Entity — Invalid parameter type
+404 Not Found — Profile not found
+500/502 — Server failure
+
+Invalid query parameters return:
+{ "status": "error", "message": "Invalid query parameters" }
+
+Additional requirements
+CORS header: Access-Control-Allow-Origin: *. Without this, the grading script cannot reach your server
+All timestamps in UTC ISO 8601
+All IDs in UUID v7
+No unnecessary full-table scans
+Response structure must match exactly. Grading is partially automated
+
+README requirement (this will cost you points)
+
+Your README must cover two things:
+Your natural language parsing approach, what keywords you support, how they map to filters, and how the logic works
+Limitations, what your parser doesn't handle and edge cases you left out
+Submissions without this will be penalized.
+
+Evaluation Criteria
+Filtering Logic          20 pts
+Combined Filters         15 pts
+Pagination               15 pts
+Sorting                  10 pts
+Natural Language Parsing 20 pts
+README Explanation       10 pts
+Query Validation          5 pts
+Performance               5 pts
+Total                   100 pts
+
+Submission instructions
+Any language works
+Render is not accepted. Vercel, Railway, Heroku, AWS, PXXL App, and similar platforms are fine
+Your GitHub repo must include a complete README covering your parsing approach and its limitations
+Seed your database with all 2026 profiles before submitting
+Test all endpoints before submitting
+
+Submission
+
+Steps:
+Confirm your server is live. Test from multiple networks if you can
+Run /submit in #stage-2-backend and submit the requested URLs
+
+Submit:
+Your API base URL (https://yourapp.domain.app)
+Your GitHub repo link
+Check Thanos bot for the error or success message after each attempt
+
+Pass Mark: 75/100
+
+Submission Deadline: Thursday 23rd, April 2026 | 5:00 pm GMT+1 (WAT)
+
+Good luck, Backend Wizards! :rocket:

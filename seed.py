@@ -9,6 +9,8 @@ import json
 import os
 import ssl
 import sys
+from typing import Optional
+from urllib.parse import urlparse, unquote
 
 import asyncpg
 import uuid_utils as uuid
@@ -29,6 +31,35 @@ def classify_age_group(age: int) -> str:
 
 
 def get_connection_kwargs() -> dict:
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        normalized = database_url.strip()
+        if normalized.startswith("postgresql+asyncpg://"):
+            normalized = "postgresql://" + normalized[len("postgresql+asyncpg://") :]
+        elif normalized.startswith("postgres://"):
+            normalized = "postgresql://" + normalized[len("postgres://") :]
+
+        parsed = urlparse(normalized)
+        host = parsed.hostname or "localhost"
+        use_ssl = host not in ("localhost", "127.0.0.1", "::1")
+        ssl_ctx = None
+        if use_ssl:
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        kwargs = dict(
+            host=host,
+            port=parsed.port or 5432,
+            user=unquote(parsed.username or "postgres"),
+            database=(parsed.path or "/railway").lstrip("/") or "railway",
+        )
+        if parsed.password:
+            kwargs["password"] = unquote(parsed.password)
+        if ssl_ctx:
+            kwargs["ssl"] = ssl_ctx
+        return kwargs
+
     pghost = os.getenv("PGHOST", "localhost")
     pgpassword = os.getenv("PGPASSWORD")
     pgport = int(os.getenv("PGPORT", "5432"))
@@ -65,6 +96,23 @@ async def seed(filepath: str):
         data = json.load(f)
         profiles = data["profiles"] if isinstance(data, dict) else data
 
+    prepared_profiles = []
+    for p in profiles:
+        age = int(p.get("age", 0))
+        prepared_profiles.append(
+            (
+                str(uuid.uuid7()),
+                str(p["name"]).lower(),
+                str(p.get("gender", "")).lower(),
+                float(p.get("gender_probability", 0.0)),
+                age,
+                classify_age_group(age),
+                str(p.get("country_id", "")).upper(),
+                str(p.get("country_name", "")),
+                float(p.get("country_probability", 0.0)),
+            )
+        )
+
     print("Connecting to database...")
     conn_kwargs = get_connection_kwargs()
 
@@ -74,6 +122,7 @@ async def seed(filepath: str):
     print(f"  db:   {conn_kwargs['database']}")
     print(f"  ssl:  {'yes' if conn_kwargs.get('ssl') else 'no'}")
 
+    conn: Optional[asyncpg.Connection] = None
     try:
         conn = await asyncpg.connect(**conn_kwargs)
     except Exception as e:
@@ -89,15 +138,19 @@ async def seed(filepath: str):
 
     print(f"Connected! Seeding {len(profiles)} profiles...")
 
-    inserted = 0
-    skipped = 0
+    existing_rows = await conn.fetch(
+        "SELECT name FROM profiles WHERE name = ANY($1::text[])",
+        [profile[1] for profile in prepared_profiles],
+    )
+    existing_names = {row["name"] for row in existing_rows}
+
+    records_to_insert = [profile for profile in prepared_profiles if profile[1] not in existing_names]
+    inserted = len(records_to_insert)
+    skipped = len(prepared_profiles) - inserted
 
     try:
-        for p in profiles:
-            age = int(p.get("age", 0))
-            record_id = str(uuid.uuid7())
-
-            result = await conn.execute(
+        if records_to_insert:
+            await conn.executemany(
                 """
                 INSERT INTO profiles (
                     id, name, gender, gender_probability,
@@ -108,23 +161,12 @@ async def seed(filepath: str):
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
                 ON CONFLICT (name) DO NOTHING
                 """,
-                record_id,
-                str(p["name"]).lower(),
-                str(p.get("gender", "")).lower(),
-                float(p.get("gender_probability", 0.0)),
-                age,
-                classify_age_group(age),
-                str(p.get("country_id", "")).upper(),
-                str(p.get("country_name", "")),
-                float(p.get("country_probability", 0.0)),
+                records_to_insert,
             )
-            if result == "INSERT 0 1":
-                inserted += 1
-            else:
-                skipped += 1
 
     finally:
-        await conn.close()
+        if conn is not None:
+            await conn.close()
 
     print(f"\nSeed complete: {inserted} inserted, {skipped} skipped (duplicates).")
 

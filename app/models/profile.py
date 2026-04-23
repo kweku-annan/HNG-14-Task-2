@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, DateTime, func, text
+from sqlalchemy import Column, String, Float, Integer, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.database import Base
 
@@ -9,7 +9,6 @@ class Profile(Base):
     id = Column(
         UUID(as_uuid=False),
         primary_key=True,
-        server_default=text("gen_random_uuid()"),
     )
     name = Column(String, nullable=False, unique=True, index=True)
     gender = Column(String, nullable=False, index=True)
