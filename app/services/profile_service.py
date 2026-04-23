@@ -1,8 +1,10 @@
 from typing import Optional, Tuple, List
 from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException
 
 from app.models.profile import Profile
+from app.integrations.external_apis import fetch_profile_data
 
 
 VALID_SORT_COLUMNS = {
@@ -85,3 +87,46 @@ async def get_profiles(
     profiles = result.scalars().all()
 
     return total, list(profiles)
+
+
+
+async def create_profile(name: str, db: AsyncSession):
+    # Idempotency check
+    result = await db.execute(select(Profile).where(Profile.name == name.lower()))
+    existing = result.scalar_one_or_none()
+    if existing:
+        return existing, True
+
+    # Fetch from external APIs
+    data = await fetch_profile_data(name)
+
+    profile = Profile(
+        name=name.lower(),
+        gender=data.gender,
+        gender_probability=data.gender_probability,
+        sample_size=data.sample_size,
+        age=data.age,
+        age_group=data.age_group,
+        country_id=data.country_id,
+        country_name=data.country_name,
+        country_probability=data.country_probability,
+    )
+    db.add(profile)
+    await db.commit()
+    await db.refresh(profile)
+    return profile, False
+
+async def get_profile_by_id(profile_id: str, db: AsyncSession):
+    result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profile
+
+async def delete_profile(profile_id: str, db: AsyncSession):
+    result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    await db.delete(profile)
+    await db.commit()

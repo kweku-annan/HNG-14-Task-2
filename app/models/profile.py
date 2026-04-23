@@ -1,15 +1,11 @@
+import uuid6
 from sqlalchemy import Column, String, Float, Integer, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.database import Base
 
-
 class Profile(Base):
     __tablename__ = "profiles"
-
-    id = Column(
-        UUID(as_uuid=False),
-        primary_key=True,
-    )
+    id = Column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid6.uuid7()), nullable=False)
     name = Column(String, nullable=False, unique=True, index=True)
     gender = Column(String, nullable=False, index=True)
     gender_probability = Column(Float, nullable=False)

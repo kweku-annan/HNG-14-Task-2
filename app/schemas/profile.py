@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProfileOut(BaseModel):
@@ -43,3 +43,34 @@ class ProfileFilters(BaseModel):
     order: Optional[str] = Field(default="asc", pattern="^(asc|desc)$")
     page: int = Field(default=1, ge=1)
     limit: int = Field(default=10, ge=1, le=50)
+
+
+class ProfileCreate(BaseModel):
+    name: str
+
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError('name must not be empty')
+        if not v.strip().replace(" ", "").replace("-", "").isalpha():
+            raise ValueError('name must not contain numbers or symbols')
+        return v.strip().lower()
+
+class ProfileResponse(BaseModel):
+    id: str
+    name: str
+    gender: str
+    gender_probability: float
+    sample_size: int
+    age: int
+    age_group: str
+    country_id: str
+    country_name: str
+    country_probability: float
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True,
+        "json_encoders": {datetime: lambda v: v.strftime('%Y-%m-%dT%H:%M:%SZ')}
+    }

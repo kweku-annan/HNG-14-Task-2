@@ -1,10 +1,11 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.schemas.profile import ProfileListResponse, ProfileOut
-from app.services.profile_service import get_profiles, VALID_AGE_GROUPS, VALID_GENDERS
+from app.schemas.profile import ProfileListResponse, ProfileOut, ProfileCreate, ProfileResponse
+from app.services.profile_service import get_profiles, VALID_AGE_GROUPS, VALID_GENDERS, create_profile, get_profile_by_id, delete_profile
 from app.services.nl_parser import parse_natural_language
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
@@ -131,3 +132,41 @@ async def search_profiles(
         total=total,
         data=[ProfileOut.model_validate(p) for p in profiles],
     )
+
+
+@router.post("", status_code=201)
+async def handle_create_profile(
+    payload: ProfileCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    profile, already_existed = await create_profile(payload.name, db)
+    profile_data = ProfileResponse.model_validate(profile).model_dump(mode="json")
+    if already_existed:
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": "Profile already exists",
+            "data": profile_data
+        })
+    return JSONResponse(status_code=201, content={
+        "status": "success",
+        "data": profile_data
+    })
+
+@router.get("/{profile_id}", status_code=200)
+async def handle_get_profile(
+    profile_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    profile = await get_profile_by_id(profile_id, db)
+    return {
+        "status": "success",
+        "data": ProfileResponse.model_validate(profile).model_dump(mode="json")
+    }
+
+@router.delete("/{profile_id}", status_code=204)
+async def handle_delete_profile(
+    profile_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    await delete_profile(profile_id, db)
+    return Response(status_code=204)
