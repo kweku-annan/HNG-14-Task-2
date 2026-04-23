@@ -104,7 +104,6 @@ async def create_profile(name: str, db: AsyncSession):
         name=name.lower(),
         gender=data.gender,
         gender_probability=data.gender_probability,
-        sample_size=data.sample_size,
         age=data.age,
         age_group=data.age_group,
         country_id=data.country_id,
