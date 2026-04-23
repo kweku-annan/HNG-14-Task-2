@@ -136,7 +136,28 @@ async def seed(filepath: str):
         print("  python seed.py seed_profiles.json")
         sys.exit(1)
 
+    connection_info = await conn.fetchrow(
+        """
+        SELECT
+            current_database() AS database_name,
+            current_schema() AS schema_name,
+            current_user AS username,
+            inet_server_addr()::text AS server_addr,
+            inet_server_port() AS server_port
+        """
+    )
+    print(
+        "Connected to "
+        f"db={connection_info['database_name']} "
+        f"schema={connection_info['schema_name']} "
+        f"user={connection_info['username']} "
+        f"server={connection_info['server_addr']}:{connection_info['server_port']}"
+    )
+
     print(f"Connected! Seeding {len(profiles)} profiles...")
+
+    total_before = await conn.fetchval("SELECT COUNT(*) FROM public.profiles")
+    print(f"Rows before seed: {total_before}")
 
     existing_rows = await conn.fetch(
         "SELECT name FROM profiles WHERE name = ANY($1::text[])",
@@ -166,6 +187,8 @@ async def seed(filepath: str):
 
     finally:
         if conn is not None:
+            total_after = await conn.fetchval("SELECT COUNT(*) FROM public.profiles")
+            print(f"Rows after seed: {total_after}")
             await conn.close()
 
     print(f"\nSeed complete: {inserted} inserted, {skipped} skipped (duplicates).")
